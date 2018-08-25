@@ -10,7 +10,7 @@ app.listen(process.env.PORT);
 setInterval(() => {
   http.get(`http://${process.env.PROJECT_DOMAIN}.glitch.me/`);
 }, 280000);
-
+//-------------------------------------------------------------------------------------------------------------------------------
 const time = require('moment-timezone')
 const request = require("request")
 const config = require("./config.json") //contains small configuration options, will be moved to the .env file
@@ -19,10 +19,12 @@ const Discord = require("discord.js")
 const counties = require("./counties.json") //key:value pairs of county codes to county names
 const closure = ['ramp closure', 'closed'] // typical PennDOT nomenclature for when a road segment is completely impassable
 const pa511 = new Discord.WebhookClient('428918228832747521', process.env.webhooktoken) //webhook client until the full bot is implemented
+const color = require("./color.json")
 //-------------------------------------------------------------------------------------------------------
 //basic options for the get request to the RCRS API
 var headers = { "Authorization" : "Basic " + process.env.PAToken};
 var params = { "url": process.env.URL, "method":"GET", "headers": headers }
+
 //open up the sqlite database housing info on current and past traffic events
 sql.open("./PA511")
 
@@ -42,15 +44,17 @@ function callback (err, res, body) {
             if (!row) {  //if the EventID does not exist, add it
                 sql.run(`INSERT INTO PA511 (EventID, Facility, LaneStatus, Description, EventClass, EventType, County, IncidentMuniName, FromLocLatLong, ToLocLatLong, IncidentLocLatLong, DateTimeVerified, DateTimeNotified, CreateTime, LastUpdate, DetourInEffect, ActualDateTimeOpened, MessageID, ClosedBy, SegmentIDs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, returnData(entry));
                if (closure.includes(entry.LaneStatus) == true) { //If the lane status of this EventID is closed, send a message to the closure channel, and to the log
-                 pa511.send(ClosureEmbed(entry).then(console.log('msg sent')))
-                    console.log(`Closure added for ${entry.Facility} because of ${entry.Description}`)
+                 pa511.send(ClosureEmbed(entry))
+                 console.log(`Closure added for ${entry.Facility} because of ${entry.Description}`)
                 }
                 else {
                 console.log(`${entry.EventID} added as ${entry.Description}`)} //if it isn't a closure, just report out to the console - just here for error checking at this time, probably will be removed in the future
         }
         if (row.LaneStatus !== entry.LaneStatus) { //if the current lane status and prior lane status don't match, let's look closer
             if (closure.includes(row.LaneStatus) == true || closure.includes(entry.LaneStatus) == true) { //if either current or past is or was closed, we need to send a message
-                if (closure.includes(entry.LaneStatus) == true) { pa511.send(ClosureEmbed(entry))} //if the current status is now closed, send a closure message
+                if (closure.includes(entry.LaneStatus) == true) { 
+                  console.log('closure added')
+                  pa511.send(ClosureEmbed(entry))} //if the current status is now closed, send a closure message
                 if (closure.includes(row.LaneStatus) == true) { //if the current status isn't closed, we need to open up that segment
                     pa511.send(sendOpenMsg(entry))
                     console.log(`${entry.EventID} ${entry.Facility} in ${entry.IncidentMuniName}, ${counties[entry.County]} remove closure`)} //report out to console, will be removed
@@ -60,9 +64,9 @@ function callback (err, res, body) {
             else {
                 console.log(`${row.EventID} changed from ${row.LaneStatus} to ${entry.LaneStatus}`)
                 if (entry.LaneStatus == 'open') {
-                    //sql.run(`DELETE FROM PA511 WHERE EventID = ${entry.EventID}`)
+                    //sql.run(`UPDATE PA511 SET ActualDateTimeOpened = \"${TimeCorrect(entry.ActualDateTimeOpened)}\" WHERE EventID = ` + entry.EventID)
                     console.log(`${entry.EventID} deleted`) }
-                    sql.run(check)
+                sql.run(check)
             }
         };
         })
@@ -100,12 +104,12 @@ function ClosureEmbed(d) { //create the embed used to send via the webhook
     else { 
         var FromLatLong = d.FromLocLatLong; 
         var ToLatLong = d.ToLocLatLong }
-  let closeEmbedhook = { 
+  var closeEmbedhook = { 
         "embeds": [ 
             {
             "title": `${d.Facility} closed due to ${d.EventType}`,
             "url": "https://511PA.com",
-             "color": 16711680,
+             "color": color[d.EventType],
              "timestamp": TimeCorrect(d.CreateTime),
              "footer": {
           "icon_url": "https://pbs.twimg.com/profile_images/743481571538243585/WX01GtGM_400x400.jpg",
@@ -149,7 +153,7 @@ function sendOpenMsg(d) { //create an embed used to send on opening of a road se
         var ToLatLong = d.ToLocLatLong}
     let openEmbed = {  "embeds": [{
     "title": `${d.Facility} was closed due to ${d.EventType}`,
-    "color": 1505030,
+    "color":  1505030,
     "timestamp": TimeCorrect(d.LastUpdate),
     "footer": {
       "icon_url": "https://pbs.twimg.com/profile_images/743481571538243585/WX01GtGM_400x400.jpg",
