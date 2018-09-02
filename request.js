@@ -44,17 +44,17 @@ function callback (err, res, body) {
             if (!row) {  //if the EventID does not exist, add it
                 sql.run(`INSERT INTO PA511 (EventID, Facility, LaneStatus, Description, EventClass, EventType, County, IncidentMuniName, FromLocLatLong, ToLocLatLong, IncidentLocLatLong, DateTimeVerified, DateTimeNotified, CreateTime, LastUpdate, DetourInEffect, ActualDateTimeOpened, MessageID, ClosedBy, SegmentIDs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, returnData(entry));
                if (closure.includes(entry.LaneStatus) == true) { //If the lane status of this EventID is closed, send a message to the closure channel, and to the log
-                 pa511.send(ClosureEmbed(entry))
-                 console.log(`Closure added for ${entry.Facility} because of ${entry.Description}`)
-                }
+                  console.log(`Closure added for ${entry.Facility} because of ${entry.Description}`)
+                 pa511.send(ClosureEmbed(entry)).then(msg => { sql.run(`UPDATE PA511 SET MessageID = ${msg.id} WHERE EventID = ` + entry.EventID) } )
+               }
                 else {
                 console.log(`${entry.EventID} added as ${entry.Description}`)} //if it isn't a closure, just report out to the console - just here for error checking at this time, probably will be removed in the future
         }
         if (row.LaneStatus !== entry.LaneStatus) { //if the current lane status and prior lane status don't match, let's look closer
             if (closure.includes(row.LaneStatus) == true || closure.includes(entry.LaneStatus) == true) { //if either current or past is or was closed, we need to send a message
                 if (closure.includes(entry.LaneStatus) == true) { 
-                  console.log('closure added')
-                  pa511.send(ClosureEmbed(entry))} //if the current status is now closed, send a closure message
+                  console.log(`Closure added for ${entry.Facility} because of ${entry.Description}`)
+                  pa511.send(ClosureEmbed(entry)).then(msg => { sql.run(`UPDATE PA511 SET MessageID = ${msg.id} WHERE EventID = ` + entry.EventID) } ) } //if the current status is now closed, send a closure message
                 if (closure.includes(row.LaneStatus) == true) { //if the current status isn't closed, we need to open up that segment
                     pa511.send(sendOpenMsg(entry))
                     console.log(`${entry.EventID} ${entry.Facility} in ${entry.IncidentMuniName}, ${counties[entry.County]} remove closure`)} //report out to console, will be removed
@@ -64,7 +64,8 @@ function callback (err, res, body) {
             else {
                 console.log(`${row.EventID} changed from ${row.LaneStatus} to ${entry.LaneStatus}`)
                 if (entry.LaneStatus == 'open') {
-                    //sql.run(`UPDATE PA511 SET ActualDateTimeOpened = \"${TimeCorrect(entry.ActualDateTimeOpened)}\" WHERE EventID = ` + entry.EventID)
+                    sql.run(`UPDATE PA511 SET ActualDateTimeOpened = \"${TimeCorrect(entry.ActualDateTimeOpened)}\" WHERE EventID = ` + entry.EventID)
+                    //sql.run(`DELETE FROM PA511 WHERE EventID = ${entry.EventID}`)
                     console.log(`${entry.EventID} deleted`) }
                 sql.run(check)
             }
