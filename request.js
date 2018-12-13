@@ -13,25 +13,26 @@ setInterval(() => {
 //-------------------------------------------------------------------------------------------------------------------------------
 const time = require('moment-timezone')
 const request = require("request")
-const config = require("./config.json") //contains small configuration options, will be moved to the .env file
 const sql = require('sqlite')
 const Discord = require("discord.js")
 const counties = require("./counties.json") //key:value pairs of county codes to county names
 const closure = ['ramp closure', 'closed'] // typical PennDOT nomenclature for when a road segment is completely impassable
 const pa511 = new Discord.WebhookClient('428918228832747521', process.env.webhooktoken) //webhook client until the full bot is implemented
 const color = require("./color.json")
+const weather = ['flooding', 'winter weather', 'downed utility', 'downed tree', 'debris on roadway', 'downed tree in wires']
 //-------------------------------------------------------------------------------------------------------
 //basic options for the get request to the RCRS API
 var headers = { "Authorization" : "Basic " + process.env.PAToken};
 var params = { "url": process.env.URL, "method":"GET", "headers": headers }
 
 //open up the sqlite database housing info on current and past traffic events
-sql.open("./PA511")
-
+sql.open(".data/PA511")
 //request from the RCRS API every 60 seconds, maybe be adjusted in the future
 setInterval(function() {
     request(params, callback)}, 60*1000
     )
+setInterval(() => {  clearOpen()   }, 3600000)
+
 //callback from the request response to do the parsing
 function callback (err, res, body) { 
     console.log('Checking 511PA...')
@@ -54,7 +55,8 @@ function callback (err, res, body) {
             if (closure.includes(row.LaneStatus) == true || closure.includes(entry.LaneStatus) == true) { //if either current or past is or was closed, we need to send a message
                 if (closure.includes(entry.LaneStatus) == true) { 
                   console.log(`Closure added for ${entry.Facility} because of ${entry.Description}`)
-                  pa511.send(ClosureEmbed(entry)).then(msg => { sql.run(`UPDATE PA511 SET MessageID = ${msg.id} WHERE EventID = ` + entry.EventID) } ) } //if the current status is now closed, send a closure message
+                  pa511.send(ClosureEmbed(entry)).then(msg => { sql.run(`UPDATE PA511 SET MessageID = ${msg.id} WHERE EventID = ` + entry.EventID) } ) 
+                } //if the current status is now closed, send a closure message
                 if (closure.includes(row.LaneStatus) == true) { //if the current status isn't closed, we need to open up that segment
                     pa511.send(sendOpenMsg(entry))
                     console.log(`${entry.EventID} ${entry.Facility} in ${entry.IncidentMuniName}, ${counties[entry.County]} remove closure`)} //report out to console, will be removed
@@ -65,7 +67,7 @@ function callback (err, res, body) {
                 console.log(`${row.EventID} changed from ${row.LaneStatus} to ${entry.LaneStatus}`)
                 if (entry.LaneStatus == 'open') {
                     sql.run(`UPDATE PA511 SET ActualDateTimeOpened = \"${TimeCorrect(entry.ActualDateTimeOpened)}\" WHERE EventID = ` + entry.EventID)
-                    //sql.run(`DELETE FROM PA511 WHERE EventID = ${entry.EventID}`)
+                   // sql.run(`DELETE FROM PA511 WHERE EventID = ${entry.EventID}`)
                     console.log(`${entry.EventID} deleted`) }
                 sql.run(check)
             }
@@ -91,7 +93,9 @@ function CreateLink(k) { //create a WME permalink from a given lat/long pair
 }
 
 function TimeCorrect(a) { //create a ISO compliant timestamp adjusting for Timezone
-    let t = new Date(a).toISOString()
+    let y = new Date(a)
+     if (isNaN(y)) return;
+    let t = y.toISOString
     let x = time.tz(a, 'America/New_York')
     //let x = new Date(t + (t.getTimezoneOffset() * 60000))
     return x.format()
@@ -109,7 +113,7 @@ function ClosureEmbed(d) { //create the embed used to send via the webhook
         "embeds": [ 
             {
             "title": `${d.Facility} closed due to ${d.EventType}`,
-            "url": "https://511PA.com",
+            "url": `https://www.511PA.com/Traffic.aspx?${FromLatLong},18z`,
              "color": color[d.EventType],
              "timestamp": TimeCorrect(d.CreateTime),
              "footer": {
@@ -118,7 +122,7 @@ function ClosureEmbed(d) { //create the embed used to send via the webhook
         },
           "author": {
           "name": "511PA DataFeed",
-          "url": "https://511PA.com",
+          "url": `https://www.511PA.com/Traffic.aspx?${FromLatLong},18z`,
           "icon_url": "https://pbs.twimg.com/profile_images/743481571538243585/WX01GtGM_400x400.jpg"
         },
           "fields": [ 
@@ -126,13 +130,14 @@ function ClosureEmbed(d) { //create the embed used to send via the webhook
                 "name": "Reason",
                 "value": d.Description
             },
-            {"name": "From",
-                 "value":  `[WME Link](${CreateLink(FromLatLong)})`
-            },
-            {
-                 "name": "To",
-                 "value": `[WME Link](${CreateLink(ToLatLong)})`
-            },
+      {
+        "name": `From`,
+        "value": `[WME Link](${CreateLink(FromLatLong)}) | [LiveMap Link](${livemaplink(FromLatLong)}) | [App Link](${applink(FromLatLong)})`
+      },
+      {
+        "name": "To",
+        "value": `[WME Link](${CreateLink(ToLatLong)}) | [LiveMap Link](${livemaplink(ToLatLong)})  | [App Link](${applink(ToLatLong)})`
+      },
             {"name": "Municipality",
             "value": d.IncidentMuniName,
             "inline": true},
@@ -161,8 +166,8 @@ function sendOpenMsg(d) { //create an embed used to send on opening of a road se
       "text": `Event ${d.EventID} updated at`
     },
     "author": {
-      "name": "511PABot",
-      "url": "https://511PA.com",
+      "name": "511PA DataFeed",
+      "url": `https://www.511PA.com/Traffic.aspx?${d.FromLocLatLong},18z`,
       "icon_url": "https://pbs.twimg.com/profile_images/743481571538243585/WX01GtGM_400x400.jpg"
     },
     "fields": [
@@ -170,12 +175,12 @@ function sendOpenMsg(d) { //create an embed used to send on opening of a road se
        "value": d.Description
       },
       {
-        "name": "From",
-        "value": `[WME Link](${CreateLink(FromLatLong)})`
+        "name": `From`,
+        "value": `[WME Link](${CreateLink(FromLatLong)}) | [LiveMap Link](${livemaplink(FromLatLong)}) | [App Link](${applink(FromLatLong)})`
       },
       {
         "name": "To",
-        "value": `[WME Link](${CreateLink(ToLatLong)})`
+        "value": `[WME Link](${CreateLink(ToLatLong)}) | [LiveMap Link](${livemaplink(ToLatLong)})  | [App Link](${applink(ToLatLong)})`
       },
       {
         "name": "Municipality",
@@ -192,3 +197,18 @@ function sendOpenMsg(d) { //create an embed used to send on opening of a road se
 }
 return openEmbed
   }
+
+function clearOpen() {
+sql.run('DELETE FROM PA511 WHERE LaneStatus = "open"').then(
+  console.log(`all open status deleted`)
+)}
+
+function livemaplink(k) {
+     var lmlink = `https://www.waze.com/livemap?lon=${k.split(',')[1]}&lat=${k.split(',')[0]}&zoom=17`
+    return lmlink
+}
+
+function applink(k) {
+ var wazelink = `https://www.waze.com/ul?ll=${k.split(',')[0]},${k.split(',')[1]}`
+return wazelink
+     }
