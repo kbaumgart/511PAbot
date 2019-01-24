@@ -1,0 +1,18 @@
+{
+    "flooding": 27135,
+    "crash": 16716288,
+    "roadwork": 16739072, 
+    "winter weather":  16644087,
+    "debris on roadway": 9131818,
+    "special event": 5301186,
+    "other incident": 5301186,
+    "bridge outage": 16739072, 
+    "downed utility":	9131818,
+    "downed tree": 9131818,
+    "bridge precaution":	16739072, 
+    "multi vehicle crash":	16716288,
+    "disabled vehicle":	16716288,
+    "slow vehicle":	16312092,
+    "vehicle fire":	16716288,
+    "police department activity":	16716288
+}
