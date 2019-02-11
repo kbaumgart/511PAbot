@@ -39,7 +39,7 @@ function callback (err, res, body) {
     let json = JSON.parse(body)
     let loop = json.Values.length
         for (let i=0; i < loop; i++) { //run a loop of all responses
-        let entry = json.Values[i];   
+        let entry = json.Values[i];
         sql.get(`SELECT * FROM PA511 WHERE EventID = ${entry.EventID}`).then(row => { //does the EventID exist? If so, get all values
             let check = `UPDATE PA511 SET LaneStatus =  \"${entry.LaneStatus}\" WHERE EventID = ` + entry.EventID //simple variable to use to update the db when the time comes
             if (!row) {  //if the EventID does not exist, add it
@@ -47,6 +47,8 @@ function callback (err, res, body) {
                if (closure.includes(entry.LaneStatus) == true) { //If the lane status of this EventID is closed, send a message to the closure channel, and to the log
                   console.log(`Closure added for ${entry.Facility} because of ${entry.Description}`)
                  pa511.send(ClosureEmbed(entry)).then(msg => { sql.run(`UPDATE PA511 SET MessageID = ${msg.id} WHERE EventID = ` + entry.EventID) } )
+                /* if (entry.IsFatality == "T") { pa511.send('Fatal Crash') }
+                 if (entry.IsInterstate == "T") { pa511.send('Interstate Closure') }*/
                }
                 else {
                 console.log(`${entry.EventID} added as ${entry.Description}`)} //if it isn't a closure, just report out to the console - just here for error checking at this time, probably will be removed in the future
@@ -56,6 +58,7 @@ function callback (err, res, body) {
                 if (closure.includes(entry.LaneStatus) == true) { 
                   console.log(`Closure added for ${entry.Facility} because of ${entry.Description}`)
                   pa511.send(ClosureEmbed(entry)).then(msg => { sql.run(`UPDATE PA511 SET MessageID = ${msg.id} WHERE EventID = ` + entry.EventID) } ) 
+
                 } //if the current status is now closed, send a closure message
                 if (closure.includes(row.LaneStatus) == true) { //if the current status isn't closed, we need to open up that segment
                     pa511.send(sendOpenMsg(entry))
