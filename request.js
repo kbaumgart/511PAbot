@@ -2,13 +2,14 @@ const http = require('http');
 const express = require('express');
 const app = express();
 
-app.get("/", (request, response) => { //this section here to kelp keep the bot alive
+app.get("/", (request, response) => { //this section here to help keep the bot alive
   console.log(Date.now() + " Ping Received");
   response.sendStatus(200);
 });
 app.listen(process.env.PORT);
 setInterval(() => {
-  http.get(`http://${process.env.PROJECT_DOMAIN}.glitch.me/`);
+    console.log(`${process.env.PROJECT_DOMAIN}`);
+  http.get(`http://${process.env.PROJECT_DOMAIN}.repl.co`);
 }, 280000);
 //-------------------------------------------------------------------------------------------------------------------------------
 const time = require('moment-timezone')
@@ -32,6 +33,11 @@ setInterval(function() {
     request(params, callback)}, 60*1000
     )
 setInterval(() => {  clearOpen()   }, 3600000)
+
+process.on('unhandledRejection', (error, p) => {
+  console.log('=== UNHANDLED REJECTION ===');
+  console.dir(error.stack);
+});
 
 //callback from the request response to do the parsing
 function callback (err, res, body) { 
@@ -77,7 +83,7 @@ function callback (err, res, body) {
            console.error
             sql.run("CREATE TABLE IF NOT EXISTS PA511 (EventID INTEGER, Facility TEXT, LaneStatus TEXT, Description TEXT, EventClass INTEGER, EventType TEXT, County INTEGER, IncidentMuniName TEXT, FromLocLatLong TEXT, ToLocLatLong TEXT, IncidentLocLatLong TEXT, DateTimeVerified TEXT, DateTimeNotified TEXT, CreateTime TEXT, LastUpdate TEXT, DetourInEffect TEXT, ActualDateTimeOpened TEXT, MessageID INTEGER, ClosedBy INTEGER, SegmentIDs INTEGER)").then(() => {
                 sql.run(`INSERT INTO PA511 (EventID, Facility, LaneStatus, Description, EventClass, EventType, County, IncidentMuniName, FromLocLatLong, ToLocLatLong, IncidentLocLatLong, DateTimeVerified, DateTimeNotified, CreateTime, LastUpdate, DetourInEffect, ActualDateTimeOpened, MessageID, ClosedBy, SegmentIDs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, returnData(entry));
-           })
+           }).catch(err => alert(err))
             
         })
     }
@@ -201,7 +207,7 @@ return openEmbed
 function clearOpen() {
 sql.run('DELETE FROM PA511 WHERE LaneStatus = "open"').then(
   console.log(`all open status deleted`)
-)}
+).catch(console.error('error'))}
 
 function livemaplink(k) {
      var lmlink = `https://www.waze.com/livemap?lon=${k.split(',')[1]}&lat=${k.split(',')[0]}&zoom=17`
